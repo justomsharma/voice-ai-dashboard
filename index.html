@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Voice AI stack 2026 — WebRTC edition</title>
+<style>
+/* ============ Design tokens (light + dark mode) ============ */
+:root {
+  --color-background-primary: #ffffff;
+  --color-background-secondary: #f5f4ee;
+  --color-background-tertiary: #faf9f5;
+  --color-background-info: #E6F1FB;
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #6b6b6b;
+  --color-text-tertiary: #9a9a9a;
+  --color-text-info: #0C447C;
+  --color-border-tertiary: rgba(0,0,0,0.12);
+  --color-border-secondary: rgba(0,0,0,0.22);
+  --color-border-primary: rgba(0,0,0,0.32);
+  --color-border-info: #378ADD;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+  --border-radius-xl: 16px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", system-ui, sans-serif;
+  --font-serif: ui-serif, Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background-primary: #1f1f1f;
+    --color-background-secondary: #2a2a2a;
+    --color-background-tertiary: #181818;
+    --color-background-info: #0C447C;
+    --color-text-primary: #f5f5f5;
+    --color-text-secondary: #b0b0b0;
+    --color-text-tertiary: #7a7a7a;
+    --color-text-info: #85B7EB;
+    --color-border-tertiary: rgba(255,255,255,0.12);
+    --color-border-secondary: rgba(255,255,255,0.22);
+    --color-border-primary: rgba(255,255,255,0.32);
+  }
+}
+
+/* ============ Base layout ============ */
+* { box-sizing: border-box; }
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-background-tertiary);
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.7;
+}
+body {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem 4rem;
+}
+
+/* ============ Screen-reader-only ============ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  border: 0;
+}
+
+/* ============ Tabs ============ */
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+}
+.tab {
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.tab:hover { color: var(--color-text-primary); }
+.tab.active {
+  color: var(--color-text-primary);
+  border-bottom-color: var(--color-text-primary);
+}
+
+/* ============ Panels ============ */
+.panel { display: none; }
+.panel.active { display: block; }
+
+/* ============ Cards ============ */
+.card {
+  background: var(--color-background-primary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
+  padding: 1rem 1.25rem;
+  margin-bottom: 12px;
+}
+.card.featured {
+  border: 2px solid var(--color-border-info);
+}
+
+/* ============ Metric cards ============ */
+.metric {
+  background: var(--color-background-secondary);
+  border-radius: var(--border-radius-md);
+  padding: 1rem;
+}
+.metric-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0 0 4px;
+}
+.metric-value {
+  font-size: 24px;
+  font-weight: 500;
+  margin: 0;
+}
+
+/* ============ Grids ============ */
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+  margin-bottom: 1.5rem;
+}
+.grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 1.5rem;
+}
+
+/* ============ Pills / badges ============ */
+.pill {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 500;
+}
+.pill-blue { background: #E6F1FB; color: #0C447C; }
+.pill-teal { background: #E1F5EE; color: #085041; }
+.pill-amber { background: #FAEEDA; color: #633806; }
+.pill-purple { background: #EEEDFE; color: #3C3489; }
+.pill-coral { background: #FAECE7; color: #712B13; }
+.pill-pink { background: #FBEAF0; color: #72243E; }
+.pill-gray { background: #F1EFE8; color: #444441; }
+
+/* ============ Rows ============ */
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+}
+.row:last-child { border-bottom: none; }
+.row-label { font-size: 14px; }
+.row-sub {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
+/* ============ Bar visualizations ============ */
+.bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+}
+.bar-label {
+  font-size: 13px;
+  min-width: 130px;
+}
+.bar-track {
+  flex: 1;
+  height: 20px;
+  background: var(--color-background-secondary);
+  border-radius: 4px;
+  overflow: hidden;
+  position: relative;
+}
+.bar-fill {
+  height: 100%;
+  border-radius: 4px;
+}
+.bar-val {
+  font-size: 12px;
+  min-width: 40px;
+  text-align: right;
+  color: var(--color-text-secondary);
+}
+
+/* ============ Links ============ */
+.src-link {
+  color: var(--color-text-info);
+  font-size: 12px;
+  text-decoration: none;
+}
+.src-link:hover { text-decoration: underline; }
+
+/* ============ Tables ============ */
+.stack-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  table-layout: fixed;
+}
+.stack-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  padding: 8px;
+  border-bottom: 0.5px solid var(--color-border-secondary);
+  font-size: 12px;
+}
+.stack-table td {
+  padding: 10px 8px;
+  border-bottom: 0.5px solid var(--color-border-tertiary);
+  font-size: 13px;
+  word-wrap: break-word;
+}
+.stack-table tr:last-child td { border-bottom: none; }
+
+/* ============ Typography ============ */
+.cost-big {
+  font-size: 20px;
+  font-weight: 500;
+}
+.tier-header {
+  font-size: 15px;
+  font-weight: 500;
+  margin: 1.5rem 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+h3.section {
+  font-size: 16px;
+  font-weight: 500;
+  margin: 1.5rem 0 8px;
+}
+
+/* ============ Controls ============ */
+.control-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 1rem 0;
+  padding: 12px;
+  background: var(--color-background-secondary);
+  border-radius: var(--border-radius-md);
+}
+.control-row label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  min-width: 100px;
+}
+
+/* ============ Range slider styling ============ */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: var(--color-border-tertiary);
+  border-radius: 2px;
+  outline: none;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  background: var(--color-text-primary);
+  border-radius: 50%;
+  cursor: pointer;
+}
+input[type="range"]::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  background: var(--color-text-primary);
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+}
+
+/* ============ Legend ============ */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin: 8px 0 12px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+/* ============ Question buttons ============ */
+.q-btn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  background: var(--color-background-primary);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-md);
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--color-text-primary);
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.q-btn:hover {
+  background: var(--color-background-secondary);
+  border-color: var(--color-border-secondary);
+}
+.q-btn::after {
+  content: " ↗";
+  color: var(--color-text-tertiary);
+}
+
+/* ============ Utility ============ */
+.small {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+</style>
+</head>
+<body>
+
+<h2 class="sr-only">Interactive dashboard comparing voice AI infrastructure stacks for WebRTC in 2026 with tabs for overview, tier-based cost analysis, provider adoption percentages, benchmarks, company case studies, value picks, and follow-up questions.</h2>
+
+<div style="padding: 1rem 0">
+  <div style="margin-bottom: 1.25rem">
+    <p style="font-size: 22px; font-weight: 500; margin: 0 0 4px">Voice AI stack in 2026 — WebRTC edition</p>
+    <p style="font-size: 13px; color: var(--color-text-secondary); margin: 0">
+      Who's using what, what it costs, and where the value picks are. Based on public disclosures from founders, engineering blogs, and benchmark leaderboards.
+    </p>
+  </div>
+
+  <!-- ============ Tab nav ============ -->
+  <div class="tabs" id="tabs">
+    <button class="tab active" data-panel="overview">Overview</button>
+    <button class="tab" data-panel="adoption">Adoption %</button>
+    <button class="tab" data-panel="costs">Cost calculator</button>
+    <button class="tab" data-panel="benchmarks">Benchmarks</button>
+    <button class="tab" data-panel="companies">Who uses what</button>
+    <button class="tab" data-panel="valuepicks">Value picks</button>
+    <button class="tab" data-panel="questions">Dig deeper</button>
+  </div>
+
+  <!-- ============ Overview panel ============ -->
+  <div class="panel active" id="overview">
+    <div class="grid-3">
+      <div class="metric">
+        <p class="metric-label">Default orchestrator</p>
+        <p class="metric-value">LiveKit</p>
+        <p class="small" style="margin: 4px 0 0">~40% share, 10.1K GitHub stars</p>
+      </div>
+      <div class="metric">
+        <p class="metric-label">Default STT</p>
+        <p class="metric-value">Deepgram</p>
+        <p class="small" style="margin: 4px 0 0">~50% share, Nova-3</p>
+      </div>
+      <div class="metric">
+        <p class="metric-label">Default TTS</p>
+        <p class="metric-value">ElevenLabs</p>
+        <p class="small" style="margin: 4px 0 0">~45% / Cartesia ~25%</p>
+      </div>
+    </div>
+
+    <h3 class="section">Three tiers, three price points</h3>
+    <p class="small" style="margin: 0 0 12px">Your call volume decides the tier — not the tech. Click a tier to see the stacks inside it.</p>
+
+    <div class="card" onclick="switchPanel('costs')" style="cursor: pointer">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px">
+        <div><span class="pill pill-amber">Tier 1 — Managed</span><span style="margin-left: 8px; font-size: 14px; font-weight: 500">Under 10K min/month</span></div>
+        <span class="cost-big">$2.43–$4.20</span>
+      </div>
+      <p class="small" style="margin: 4px 0 0">Per 30-min session. Vapi, Retell, Bland, Synthflow. Ship in 2–5 days, pay the premium.</p>
+    </div>
+
+    <div class="card featured" onclick="switchPanel('costs')" style="cursor: pointer">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px">
+        <div><span class="pill pill-blue">Tier 2 — Hybrid</span><span style="margin-left: 8px; font-size: 14px; font-weight: 500">10K–100K min/month (the sweet spot)</span></div>
+        <span class="cost-big">$1.05–$2.24</span>
+      </div>
+      <p class="small" style="margin: 4px 0 0">LiveKit or Pipecat + bring-your-own STT/LLM/TTS. Where 60–70% of fast-growing startups sit.</p>
+    </div>
+
+    <div class="card" onclick="switchPanel('costs')" style="cursor: pointer">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 6px">
+        <div><span class="pill pill-teal">Tier 3 — Self-hosted</span><span style="margin-left: 8px; font-size: 14px; font-weight: 500">100K+ min/month</span></div>
+        <span class="cost-big">$0.19–$0.82</span>
+      </div>
+      <p class="small" style="margin: 4px 0 0">Whisper + Llama 3.3 + Kokoro on your own GPUs. ~12× cheaper. Needs MLOps.</p>
+    </div>
+
+    <h3 class="section">The three takeaways</h3>
+    <div class="card">
+      <p style="margin: 0 0 8px; font-size: 14px"><b style="font-weight: 500">1. The default stack nobody disputes:</b> LiveKit + Deepgram Nova-3 + GPT-4o/Gemini Flash + ElevenLabs or Cartesia.</p>
+      <p style="margin: 0 0 8px; font-size: 14px"><b style="font-weight: 500">2. Speech-to-speech is the future, not the present:</b> 3–6× more expensive and harder to audit. Consumer apps first, enterprise later.</p>
+      <p style="margin: 0; font-size: 14px"><b style="font-weight: 500">3. "Premium" ≠ best:</b> Scribe v2 now beats Nova-3 on WER. Inworld TTS beats ElevenLabs on preference. Test on your own audio.</p>
+    </div>
+  </div>
+
+  <!-- ============ Adoption panel ============ -->
+  <div class="panel" id="adoption">
+    <p class="small" style="margin: 0 0 16px">Rough market share among fast-growing voice AI startups, triangulated from Hamming AI's 4M-call dataset, Deepgram's 1,300+ org disclosure, GitHub stars, and public customer lists. Exact numbers aren't published anywhere — these are synthesized estimates.</p>
+
+    <h3 class="section">Orchestration framework</h3>
+    <div class="bar-wrap"><span class="bar-label">LiveKit Agents</span><div class="bar-track"><div class="bar-fill" style="width: 80%; background: #378ADD"></div></div><span class="bar-val">~40%</span></div>
+    <div class="bar-wrap"><span class="bar-label">Pipecat (Daily)</span><div class="bar-track"><div class="bar-fill" style="width: 50%; background: #378ADD"></div></div><span class="bar-val">~25%</span></div>
+    <div class="bar-wrap"><span class="bar-label">Vapi (managed)</span><div class="bar-track"><div class="bar-fill" style="width: 30%; background: #BA7517"></div></div><span class="bar-val">~15%</span></div>
+    <div class="bar-wrap"><span class="bar-label">Retell AI</span><div class="bar-track"><div class="bar-fill" style="width: 20%; background: #BA7517"></div></div><span class="bar-val">~10%</span></div>
+    <div class="bar-wrap"><span class="bar-label">Bland AI</span><div class="bar-track"><div class="bar-fill" style="width: 10%; background: #BA7517"></div></div><span class="bar-val">~5%</span></div>
+    <div class="bar-wrap"><span class="bar-label">Custom / other</span><div class="bar-track"><div class="bar-fill" style="width: 10%; background: #888780"></div></div><span class="bar-val">~5%</span></div>
+
+    <h3 class="section">Speech-to-text</h3>
+    <div class="bar-wrap"><span class="bar-label">Deepgram</span><div class="bar-track"><div class="bar-fill" style="width: 100%; background: #1D9E75"></div></div><span class="bar-val">~50%</span></div>
+    <div class="bar-wrap"><span class="bar-label">AssemblyAI</span><div class="bar-track"><div class="bar-fill" style="width: 36%; background: #1D9E75"></div></div><span class="bar-val">~18%</span></div>
+    <div class="bar-wrap"><span class="bar-label">OpenAI Whisper API</span><div class="bar-track"><div class="bar-fill" style="width: 24%; background: #1D9E75"></div></div><span class="bar-val">~12%</span></div>
+    <div class="bar-wrap"><span class="bar-label">Groq Whisper / self-hosted</span><div class="bar-track"><div class="bar-fill" style="width: 20%; background: #1D9E75"></div></div><span class="bar-val">~10%</span></div>
+    <div class="bar-wrap"><span class="bar-label">ElevenLabs Scribe</span><div class="bar-track"><div class="bar-fill" style="width: 12%; background: #1D9E75"></div></div><span class="bar-val">~6%</span></div>
+    <div class="bar-wrap"><span class="bar-label">Azure / Google / other</span><div class="bar-track"><div class="bar-fill" style="width: 8%; background: #888780"></div></div><span class="bar-val">~4%</span></div>
+
+    <h3 class="section">LLM for the thinking step</h3>
+    <div class="bar-wrap"><span class="bar-label">GPT-4o / 4o-mini</span><div class="bar-track"><div class="bar-fill" style="width: 90%; background: #7F77DD"></div></div><span class="bar-val">~45%</span></div>
+    <div class="bar-wrap"><span class="bar-label">Gemini 2.5 Flash</span><div class="bar-track"><div class="bar-fill" style="width: 40%; background: #7F77DD"></div></div><span class="bar-val">~20%</span></div>
+    <div class="bar-wrap"><span class="bar-label">Claude Haiku / Sonnet</span><div class="bar-track"><div class="bar-fill" style="width: 24%; background: #7F77DD"></div></div><span class="bar-val">~12%</span></div>
+    <div class="bar-wrap"><span class="bar-label">Groq Llama 3.3 70B</span><div class="bar-track"><div class="bar-fill" style="width: 20%; background: #7F77DD"></div></div><span class="bar-val">~10%</span></div>
+    <div class="bar-wrap"><span class="bar-label">Self-hosted Llama / Qwen</span><div class="bar-track"><div class="bar-fill" style="width: 16%; background: #7F77DD"></div></div><span class="bar-val">~8%</span></div>
+    <div class="bar-wrap"><span class="bar-label">Other (Mistral, Cohere...)</span><div class="bar-track"><div class="bar-fill" style="width: 10%; background: #888780"></div></div><span class="bar-val">~5%</span></div>
+
+    <h3 class="section">Text-to-speech</h3>
+    <div class="bar-wrap"><span class="bar-label">ElevenLabs</span><div class="bar-track"><div class="bar-fill" style="width: 90%; background: #D85A30"></div></div><span class="bar-val">~45%</span></div>
+    <div class="bar-wrap"><span class="bar-label">Cartesia Sonic</span><div class="bar-track"><div class="bar-fill" style="width: 50%; background: #D85A30"></div></div><span class="bar-val">~25%</span></div>
+    <div class="bar-wrap"><span class="bar-label">Deepgram Aura</span><div class="bar-track"><div class="bar-fill" style="width: 24%; background: #D85A30"></div></div><span class="bar-val">~12%</span></div>
+    <div class="bar-wrap"><span class="bar-label">PlayHT / Rime</span><div class="bar-track"><div class="bar-fill" style="width: 16%; background: #D85A30"></div></div><span class="bar-val">~8%</span></div>
+    <div class="bar-wrap"><span class="bar-label">OpenAI TTS</span><div class="bar-track"><div class="bar-fill" style="width: 12%; background: #D85A30"></div></div><span class="bar-val">~6%</span></div>
+    <div class="bar-wrap"><span class="bar-label">Self-hosted (Kokoro, XTTS)</span><div class="bar-track"><div class="bar-fill" style="width: 8%; background: #888780"></div></div><span class="bar-val">~4%</span></div>
+
+    <p class="small" style="margin-top: 16px; padding: 10px; background: var(--color-background-secondary); border-radius: var(--border-radius-md)">Percentages sum &gt;100% because teams often use multiple providers (A/B testing, fallbacks). Sample skews to public builders — internal enterprise stacks under-represented.</p>
+  </div>
+
+  <!-- ============ Costs panel ============ -->
+  <div class="panel" id="costs">
+    <p class="small" style="margin: 0 0 12px">All costs for a single 30-minute WebRTC session: 30 min audio input, ~15 min speech output (~22,500 chars), ~80K input + 8K output LLM tokens. Telephony excluded.</p>
+
+    <div class="control-row">
+      <label for="minutes">Session length</label>
+      <input type="range" id="minutes" min="5" max="60" value="30" step="5" style="flex: 1">
+      <span id="min-out" style="font-size: 14px; font-weight: 500; min-width: 60px; text-align: right">30 min</span>
+    </div>
+
+    <div style="margin: 1rem 0; height: 420px; position: relative">
+      <canvas id="costChart" role="img" aria-label="Bar chart comparing cost per session across 15 voice AI stacks from $0.19 to $6.40">Stack costs ranging from $0.19 self-hosted to $6.40 OpenAI Realtime.</canvas>
+    </div>
+
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background: #1D9E75"></span>Tier 3 — self-hosted</span>
+      <span class="legend-item"><span class="legend-dot" style="background: #378ADD"></span>Tier 2 — hybrid</span>
+      <span class="legend-item"><span class="legend-dot" style="background: #BA7517"></span>Tier 1 — managed</span>
+      <span class="legend-item"><span class="legend-dot" style="background: #D4537E"></span>Speech-to-speech</span>
+    </div>
+
+    <h3 class="section">Stack-by-stack breakdown (for a 30-min session)</h3>
+    <div style="overflow-x: auto">
+      <table class="stack-table">
+        <colgroup><col style="width: 28%"><col style="width: 32%"><col style="width: 16%"><col style="width: 10%"><col style="width: 14%"></colgroup>
+        <thead><tr><th>Stack</th><th>Components</th><th>Best for</th><th>Tier</th><th>Per session</th></tr></thead>
+        <tbody>
+          <tr><td><b style="font-weight: 500">Self-hosted (reserved)</b></td><td>LiveKit OSS + Whisper + Llama 3.3 + Kokoro</td><td>100K+ min/mo</td><td><span class="pill pill-teal">3</span></td><td><b style="font-weight: 500">$0.19</b></td></tr>
+          <tr><td><b style="font-weight: 500">Self-hosted (on-demand)</b></td><td>Same, on-demand GPUs</td><td>Spiky traffic</td><td><span class="pill pill-teal">3</span></td><td><b style="font-weight: 500">$0.36</b></td></tr>
+          <tr><td><b style="font-weight: 500">Hybrid enterprise</b></td><td>LiveKit Scale + negotiated API discounts</td><td>Enterprise scale</td><td><span class="pill pill-teal">3</span></td><td><b style="font-weight: 500">$0.82</b></td></tr>
+          <tr><td><b style="font-weight: 500">Stack E</b></td><td>LiveKit + Groq Whisper + Llama 3.3 70B + Cartesia Sonic Turbo</td><td>Latency-first</td><td><span class="pill pill-blue">2</span></td><td><b style="font-weight: 500">$1.05</b></td></tr>
+          <tr><td><b style="font-weight: 500">Stack C</b></td><td>Pipecat + Nova-2 + GPT-4o-mini + Aura-2</td><td>OpenAI-heavy teams</td><td><span class="pill pill-blue">2</span></td><td><b style="font-weight: 500">$1.17</b></td></tr>
+          <tr style="background: var(--color-background-secondary)"><td><b style="font-weight: 500">Stack B ⭐</b></td><td>LiveKit + Nova-3 + Gemini 2.5 Flash + Cartesia Sonic</td><td>Best all-around</td><td><span class="pill pill-blue">2</span></td><td><b style="font-weight: 500">$1.21</b></td></tr>
+          <tr><td><b style="font-weight: 500">Stack A</b></td><td>LiveKit + Nova-3 + GPT-4o + ElevenLabs Turbo v2</td><td>Premium quality</td><td><span class="pill pill-blue">2</span></td><td><b style="font-weight: 500">$2.24</b></td></tr>
+          <tr><td><b style="font-weight: 500">Retell (mini)</b></td><td>Retell AI with GPT-4o-mini voice</td><td>Non-technical teams</td><td><span class="pill pill-amber">1</span></td><td><b style="font-weight: 500">$2.43</b></td></tr>
+          <tr><td><b style="font-weight: 500">Stack D (S2S)</b></td><td>LiveKit + OpenAI gpt-realtime (LK Inference)</td><td>Sub-400ms latency</td><td><span class="pill pill-pink">S2S</span></td><td><b style="font-weight: 500">$2.63</b></td></tr>
+          <tr><td><b style="font-weight: 500">Vapi default</b></td><td>Vapi + Nova-3 + GPT-4o + ElevenLabs</td><td>Dev-first ship fast</td><td><span class="pill pill-amber">1</span></td><td><b style="font-weight: 500">$3.14</b></td></tr>
+          <tr><td><b style="font-weight: 500">Bland Scale</b></td><td>Bland AI, $0.11/min bundle</td><td>Outbound sales</td><td><span class="pill pill-amber">1</span></td><td><b style="font-weight: 500">$3.30</b></td></tr>
+          <tr><td><b style="font-weight: 500">Synthflow basic</b></td><td>Synthflow managed</td><td>No-code builders</td><td><span class="pill pill-amber">1</span></td><td><b style="font-weight: 500">$3.30</b></td></tr>
+          <tr><td><b style="font-weight: 500">Retell (full)</b></td><td>Retell AI with GPT-4o voice</td><td>Premium managed</td><td><span class="pill pill-amber">1</span></td><td><b style="font-weight: 500">$3.75</b></td></tr>
+          <tr><td><b style="font-weight: 500">Bland Start</b></td><td>Bland AI, $0.14/min entry</td><td>Early-stage pilots</td><td><span class="pill pill-amber">1</span></td><td><b style="font-weight: 500">$4.20</b></td></tr>
+          <tr><td><b style="font-weight: 500">gpt-realtime list</b></td><td>LiveKit + OpenAI Realtime (direct OpenAI pricing)</td><td>S2S no cache</td><td><span class="pill pill-pink">S2S</span></td><td><b style="font-weight: 500">$6.40</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ============ Benchmarks panel ============ -->
+  <div class="panel" id="benchmarks">
+    <h3 class="section">STT word error rate (lower is better)</h3>
+    <p class="small" style="margin: 0 0 8px">Measured on Artificial Analysis AA-WER v2.0 — a harsher blend than vendor-published numbers.</p>
+    <div style="height: 280px; position: relative">
+      <canvas id="werChart" role="img" aria-label="Word error rate comparison: ElevenLabs Scribe v2 2.3%, AssemblyAI Universal-3 Pro 6.1%, Deepgram Nova-3 5.3% median but 18% on AA-WER">STT WER: Scribe v2 leads at 2.3 percent.</canvas>
+    </div>
+
+    <h3 class="section">TTS time-to-first-byte (lower is better)</h3>
+    <p class="small" style="margin: 0 0 8px">Vendor-reported model TTFB. Real-world adds 80–120ms of network overhead.</p>
+    <div style="height: 280px; position: relative">
+      <canvas id="ttsChart" role="img" aria-label="TTS TTFB: ElevenLabs Flash 75ms, Cartesia Sonic 90ms, Deepgram Aura-2 200ms, OpenAI TTS 400ms">TTS latency: ElevenLabs Flash fastest at 75ms.</canvas>
+    </div>
+
+    <h3 class="section">LLM time-to-first-token (lower is better)</h3>
+    <p class="small" style="margin: 0 0 8px">From Artificial Analysis leaderboard, April 2026.</p>
+    <div style="height: 340px; position: relative">
+      <canvas id="llmChart" role="img" aria-label="LLM TTFT seconds: SambaNova Llama 3.3 0.2s, Gemini Flash-Lite 0.39s, Groq Llama 3.3 0.4s, GPT-4o 0.5s, Claude Haiku 0.8s">LLM latency rankings for voice agents.</canvas>
+    </div>
+
+    <h3 class="section">End-to-end voice loop (what matters most)</h3>
+    <div class="card">
+      <div class="row"><div><div class="row-label">Cerebrium + Pipecat co-located demo</div><div class="row-sub">Best-case same-VPC stack</div></div><b style="font-weight: 500">500 ms</b></div>
+      <div class="row"><div><div class="row-label">Kwindla's 30-stack benchmark (fastest)</div><div class="row-sub">GPT-4 Nano + Cartesia Sonic Turbo</div></div><b style="font-weight: 500">730 ms</b></div>
+      <div class="row"><div><div class="row-label">Hamming's production target (P90)</div><div class="row-sub">Across 10K agents monitored</div></div><b style="font-weight: 500">3,500 ms</b></div>
+      <div class="row"><div><div class="row-label">Stock LiveKit with defaults</div><div class="row-sub">SignalWire independent test</div></div><b style="font-weight: 500">1,870 ms</b></div>
+    </div>
+  </div>
+
+  <!-- ============ Companies panel ============ -->
+  <div class="panel" id="companies">
+    <p class="small" style="margin: 0 0 12px">Publicly confirmed stack choices — sourced from customer pages, press releases, founder posts, and podcast interviews.</p>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px">
+        <div><b style="font-weight: 500">11x (Julian AI SDR)</b><div class="small">AI digital workers for outbound</div></div>
+        <span class="pill pill-coral">Cartesia TTS</span>
+      </div>
+      <p class="small" style="margin: 4px 0; font-style: italic">"Cartesia's technology gives our AI digital workers reps the speed, reliability, and natural expressiveness required to engage customers at scale." — Hasan Sukkar, CEO</p>
+      <a class="src-link" href="https://cartesia.ai/customers/11x" target="_blank" rel="noopener">cartesia.ai/customers/11x ↗</a>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px">
+        <div><b style="font-weight: 500">Decagon</b><div class="small">Enterprise customer service AI</div></div>
+        <span class="pill pill-coral">ElevenLabs TTS</span>
+      </div>
+      <p class="small" style="margin: 4px 0; font-style: italic">"The most lifelike and emotionally resonant voices were powered by ElevenLabs." — Jesse Zhang, CEO</p>
+      <a class="src-link" href="https://elevenlabs.io/blog/decagon" target="_blank" rel="noopener">elevenlabs.io/blog/decagon ↗</a>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px">
+        <div><b style="font-weight: 500">Goodcall</b><div class="small">Business phone agents (2,217 deployed)</div></div>
+        <span class="pill pill-coral">Cartesia (migrated from ElevenLabs)</span>
+      </div>
+      <p class="small" style="margin: 4px 0">Public migration: all 2,217 voice agents switched from ElevenLabs to Cartesia in 2025, citing 90ms time-to-first-audio — "more than four times as fast" than before.</p>
+      <a class="src-link" href="https://cartesia.ai/customers/goodcall" target="_blank" rel="noopener">cartesia.ai/customers/goodcall ↗</a>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px">
+        <div><b style="font-weight: 500">Vapi</b><div class="small">~62M calls/month managed platform</div></div>
+        <span class="pill pill-teal">Deepgram STT</span>
+      </div>
+      <p class="small" style="margin: 4px 0; font-style: italic">"Up to 30% lower WER, 40× faster processing, 3–5× cost efficiency." — Jordan Dearsley, CEO on standardizing on Deepgram</p>
+      <a class="src-link" href="https://deepgram.com/learn/best-voice-ai-agents-2026-buyers-guide" target="_blank" rel="noopener">deepgram.com customer case ↗</a>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px">
+        <div><b style="font-weight: 500">Sierra (Bret Taylor, Clay Bavor)</b><div class="small">Enterprise AI agents</div></div>
+        <span class="pill pill-purple">OpenAI + Anthropic + Meta LLMs</span>
+      </div>
+      <p class="small" style="margin: 4px 0">Voice Sims integrates with Agent Studio using OpenAI, Anthropic, and Meta LLMs. Ghostwriter platform released on "rearchitected headless infrastructure."</p>
+      <a class="src-link" href="https://mlq.ai/news/sierra-ai-introduces-ghostwriter-platform-for-automated-agent-development/" target="_blank" rel="noopener">mlq.ai coverage ↗</a>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px">
+        <div><b style="font-weight: 500">Genspark</b><div class="small">Multimodal AI assistant</div></div>
+        <span class="pill pill-pink">OpenAI gpt-realtime-mini (S2S)</span>
+      </div>
+      <p class="small" style="margin: 4px 0">Uses gpt-realtime-mini for bilingual translation and intent routing with "near-instant" latency. One of few production S2S deployments disclosed.</p>
+      <a class="src-link" href="https://openai.com/index/introducing-gpt-realtime/" target="_blank" rel="noopener">openai.com/index/introducing-gpt-realtime ↗</a>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px">
+        <div><b style="font-weight: 500">Also named Deepgram customers</b><div class="small">From Deepgram's 2026 buyer's guide</div></div>
+        <span class="pill pill-teal">Deepgram STT</span>
+      </div>
+      <p class="small" style="margin: 4px 0">Sierra, Decagon, Granola — all listed as B2B2B customers in Deepgram's 2026 guide.</p>
+      <a class="src-link" href="https://deepgram.com/learn/best-voice-ai-agents-2026-buyers-guide" target="_blank" rel="noopener">deepgram.com buyer's guide ↗</a>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px">
+        <div><b style="font-weight: 500">Gemini 3.1 Flash Live production users</b><div class="small">Per Google's launch post</div></div>
+        <span class="pill pill-purple">Google Gemini Live</span>
+      </div>
+      <p class="small" style="margin: 4px 0">Verizon, LiveKit, and The Home Depot have given positive production feedback.</p>
+      <a class="src-link" href="https://blog.google/innovation-and-ai/models-and-research/gemini-models/gemini-3-1-flash-live/" target="_blank" rel="noopener">blog.google Gemini 3.1 Flash Live ↗</a>
+    </div>
+
+    <h3 class="section">Source trail</h3>
+    <p class="small" style="margin: 0">Hamming AI 4M-call dataset · Deepgram Jan 2026 Series C disclosure · Coval "State of Voice AI 2026" with Kwindla Kramer · GitHub livekit-agents stars/forks as of April 20, 2026 · Artificial Analysis ASR &amp; TTS leaderboards · Kwindla Kramer on TWIMLAI and Freeplay podcasts · public customer pages for Cartesia, ElevenLabs, Deepgram.</p>
+  </div>
+
+  <!-- ============ Value picks panel ============ -->
+  <div class="panel" id="valuepicks">
+    <p class="small" style="margin: 0 0 16px">Five stacks that deliver ~90% of premium quality at 30–55% of premium cost. Each has documented production adopters.</p>
+
+    <div class="card featured">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px">
+        <div><b style="font-weight: 500">V1 — The defensible default ⭐</b><div class="small" style="margin-top: 2px">LiveKit + Deepgram Nova-3 + Gemini 2.5 Flash + Cartesia Sonic 2</div></div>
+        <span class="pill pill-blue">~50% savings</span>
+      </div>
+      <p style="margin: 4px 0; font-size: 13px">Gemini Flash is ~8× cheaper than GPT-4o at similar TTFT. Cartesia Sonic matches ElevenLabs latency at ~40% of per-char price. Used by Thoughtly, 11x (Julian), countless YC voice agents.</p>
+      <div class="small"><b style="font-weight: 500">Cost:</b> $0.10–$0.14/min · <b style="font-weight: 500">Verdict:</b> Adopt this unless you have a specific reason not to.</div>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px">
+        <div><b style="font-weight: 500">V2 — The latency pick</b><div class="small" style="margin-top: 2px">Groq Whisper Turbo + Groq Llama 3.3 70B + Deepgram Aura-2 + Pipecat</div></div>
+        <span class="pill pill-purple">~55% savings</span>
+      </div>
+      <p style="margin: 4px 0; font-size: 13px">Wins when sub-400ms TTFT is non-negotiable. Groq's LPU delivers the most consistent tail latency in the market (276–315 tok/s). Aura-2 is ~40% cheaper than ElevenLabs Flash.</p>
+      <div class="small"><b style="font-weight: 500">Cost:</b> $0.08–$0.12/min · <b style="font-weight: 500">Watch out:</b> Groq capacity tiers have caused outages (Llama 4 Maverick, Nov 2025).</div>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px">
+        <div><b style="font-weight: 500">V3 — The cheapest cascade</b><div class="small" style="margin-top: 2px">AssemblyAI Universal-Streaming + GPT-4o-mini + Rime Mist + Pipecat</div></div>
+        <span class="pill pill-teal">~60% savings</span>
+      </div>
+      <p style="margin: 4px 0; font-size: 13px">Cheapest managed-grade cascade at acceptable quality. Universal-Streaming emits words in 300ms — beats Nova-3 on median latency. Rime Mist at ~$0.005/min is the cheapest production TTS. Used in Retell/Synthflow backends.</p>
+      <div class="small"><b style="font-weight: 500">Cost:</b> $0.07–$0.10/min</div>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px">
+        <div><b style="font-weight: 500">V4 — The MLOps pick</b><div class="small" style="margin-top: 2px">NVIDIA Parakeet TDT v3 + Cerebras Llama 3.3 70B + Kokoro 82M + LiveKit OSS</div></div>
+        <span class="pill pill-coral">~75–85% savings</span>
+      </div>
+      <p style="margin: 4px 0; font-size: 13px">For teams that can run GPU ops. Kokoro at ~$0.65/M chars is ~15× cheaper than ElevenLabs. Parakeet hits RTFx 2000+ on one GPU. Cerebrium's demo proved 500ms voice-to-voice on exactly this class.</p>
+      <div class="small"><b style="font-weight: 500">Cost:</b> $0.03–$0.06/min at volume · <b style="font-weight: 500">Needs:</b> Full MLOps team.</div>
+    </div>
+
+    <div class="card">
+      <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px">
+        <div><b style="font-weight: 500">V5 — The absolute latency pick</b><div class="small" style="margin-top: 2px">LiveKit + Deepgram Flux + Gemini 2.5 Flash-Lite + Cartesia Sonic 3</div></div>
+        <span class="pill pill-amber">~55% savings</span>
+      </div>
+      <p style="margin: 4px 0; font-size: 13px">Flux bundles ASR with built-in semantic turn detection — no separate VAD tuning. Gemini Flash-Lite holds the lowest AA TTFT at 0.39s. Sonic 3 adds 40+ languages. Best for sub-700ms end-to-end.</p>
+      <div class="small"><b style="font-weight: 500">Cost:</b> $0.08–$0.12/min</div>
+    </div>
+  </div>
+
+  <!-- ============ Questions panel ============ -->
+  <div class="panel" id="questions">
+    <p class="small" style="margin: 0 0 14px">These are follow-up research prompts — copy any one to your favorite AI assistant (Claude, ChatGPT, Perplexity) and it'll pull that thread for you.</p>
+    <button class="q-btn" onclick="copyPrompt(this, 'Show me the full cost math for Stack B — LiveKit + Nova-3 + Gemini 2.5 Flash + Cartesia Sonic. Break it down per component per minute and total it for 30 and 60 minute sessions.')">Full cost math for Stack B line-by-line</button>
+    <button class="q-btn" onclick="copyPrompt(this, 'What does the actual LiveKit Agents code look like for Stack B in production? Show me the agent boilerplate, provider plug-ins, VAD config, and turn detection setup.')">LiveKit Agents code for Stack B</button>
+    <button class="q-btn" onclick="copyPrompt(this, 'Compare Deepgram Nova-3 vs AssemblyAI Universal-3 Pro vs ElevenLabs Scribe v2 for streaming voice agents — WER on accented speech, median latency, tail latency, and pricing.')">STT deep-dive: Nova-3 vs Universal-3 vs Scribe v2</button>
+    <button class="q-btn" onclick="copyPrompt(this, 'Should I use OpenAI gpt-realtime speech-to-speech or a cascaded stack? Give me the full decision tree with cost, latency, quality, and compliance trade-offs.')">Speech-to-speech vs cascaded — should I switch?</button>
+    <button class="q-btn" onclick="copyPrompt(this, 'Give me the self-hosting playbook for voice AI: GPU sizing for Whisper + Llama 3.3 + Kokoro, concurrency per GPU, infrastructure cost breakdown at 100K, 500K, and 1M minutes/month.')">Self-hosting playbook: GPU sizing, concurrency, economics</button>
+    <button class="q-btn" onclick="copyPrompt(this, 'What is the right monitoring and evals stack for production voice AI? Prometheus + Grafana metrics to track, Coval / Hamming for regression testing, LangSmith or Freeplay for tracing.')">Production monitoring &amp; evals stack</button>
+    <button class="q-btn" onclick="copyPrompt(this, 'How do teams handle voice agent interruption and barge-in for WebRTC specifically? Show me LiveKit vs Pipecat approaches with code and the false-positive tuning tricks.')">Interruption handling in WebRTC — code-level</button>
+    <button class="q-btn" onclick="copyPrompt(this, 'Show me what the migration path looks like from Vapi or Retell to a custom LiveKit stack — what breaks, what to benchmark, how to do parallel running.')">Migration playbook: managed → custom LiveKit</button>
+    <button class="q-btn" onclick="copyPrompt(this, 'What are the emerging voice AI startups to watch in 2026 that I might not have heard of — Phonic, Hume EVI 3, Ultravox, Sesame, Kyutai Moshi — and what are they uniquely good at?')">Emerging voice AI startups to watch in 2026</button>
+    <button class="q-btn" onclick="copyPrompt(this, 'Give me a comparison of voice agent observability and testing platforms — Coval, Hamming, Vocode, LangSmith — with pricing and what each is best at.')">Voice agent testing platforms compared</button>
+    <button class="q-btn" onclick="copyPrompt(this, 'What are the biggest production gotchas with LiveKit Agents in 2026? Echo cancellation, turn detection false positives, tool-calling mid-utterance, streaming frame ordering — give me the full list with fixes.')">LiveKit production gotchas &amp; fixes</button>
+    <button class="q-btn" onclick="copyPrompt(this, 'Deep-dive on Deepgram Flux vs a Silero VAD + Smart Turn v3 stack — is the bundled ASR+turn-detection actually better, or should I keep them separate?')">Deepgram Flux vs Silero + Smart Turn v3</button>
+  </div>
+</div>
+
+<!-- ============ Chart.js CDN ============ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+
+<script>
+(function () {
+  // ============ Tab switching ============
+  const tabs = document.querySelectorAll('.tab');
+  const panels = document.querySelectorAll('.panel');
+
+  tabs.forEach(t => t.addEventListener('click', () => {
+    tabs.forEach(x => x.classList.remove('active'));
+    panels.forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById(t.dataset.panel).classList.add('active');
+  }));
+
+  // ============ Programmatic panel switch (from overview cards) ============
+  window.switchPanel = function (id) {
+    tabs.forEach(x => x.classList.remove('active'));
+    panels.forEach(x => x.classList.remove('active'));
+    document.querySelector('[data-panel="' + id + '"]').classList.add('active');
+    document.getElementById(id).classList.add('active');
+  };
+
+  // ============ Copy-to-clipboard for question buttons ============
+  window.copyPrompt = function (btn, text) {
+    navigator.clipboard.writeText(text).then(() => {
+      const original = btn.textContent;
+      btn.textContent = '✓ Copied to clipboard — paste into your AI';
+      setTimeout(() => { btn.textContent = original; }, 1600);
+    }).catch(() => {
+      alert('Prompt:\n\n' + text);
+    });
+  };
+
+  // ============ Chart.js global setup ============
+  const isDark = matchMedia('(prefers-color-scheme: dark)').matches;
+  const gridCol = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+  const txtCol = isDark ? 'rgba(255,255,255,0.75)' : 'rgba(0,0,0,0.7)';
+
+  // ============ Cost chart data ============
+  const stacks = [
+    { n: 'Self-host reserved', c: 0.19, t: '#1D9E75' },
+    { n: 'Self-host on-demand', c: 0.36, t: '#1D9E75' },
+    { n: 'Hybrid enterprise', c: 0.82, t: '#1D9E75' },
+    { n: 'Stack E (Groq)', c: 1.05, t: '#378ADD' },
+    { n: 'Stack C (Pipecat)', c: 1.17, t: '#378ADD' },
+    { n: 'Stack B ⭐', c: 1.21, t: '#378ADD' },
+    { n: 'Stack A (premium)', c: 2.24, t: '#378ADD' },
+    { n: 'Retell mini', c: 2.43, t: '#BA7517' },
+    { n: 'gpt-realtime (cached)', c: 2.63, t: '#D4537E' },
+    { n: 'Vapi default', c: 3.14, t: '#BA7517' },
+    { n: 'Bland Scale', c: 3.30, t: '#BA7517' },
+    { n: 'Synthflow', c: 3.30, t: '#BA7517' },
+    { n: 'Retell full', c: 3.75, t: '#BA7517' },
+    { n: 'Bland Start', c: 4.20, t: '#BA7517' },
+    { n: 'gpt-realtime list', c: 6.40, t: '#D4537E' }
+  ];
+
+  // ============ Cost chart (horizontal bar) ============
+  const costCtx = document.getElementById('costChart');
+  const costChart = new Chart(costCtx, {
+    type: 'bar',
+    data: {
+      labels: stacks.map(s => s.n),
+      datasets: [{
+        label: '$ per session',
+        data: stacks.map(s => s.c),
+        backgroundColor: stacks.map(s => s.t),
+        borderRadius: 3
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => '$' + c.parsed.x.toFixed(2) + ' per session' } }
+      },
+      scales: {
+        x: { ticks: { color: txtCol, callback: v => '$' + v }, grid: { color: gridCol } },
+        y: { ticks: { color: txtCol, font: { size: 11 } }, grid: { display: false } }
+      }
+    }
+  });
+
+  // ============ Session length slider ============
+  const minSlider = document.getElementById('minutes');
+  const minOut = document.getElementById('min-out');
+  minSlider.addEventListener('input', () => {
+    const m = parseInt(minSlider.value);
+    const ratio = m / 30;
+    minOut.textContent = m + ' min';
+    costChart.data.datasets[0].data = stacks.map(s => +(s.c * ratio).toFixed(2));
+    costChart.update('none');
+  });
+
+  // ============ WER chart ============
+  new Chart(document.getElementById('werChart'), {
+    type: 'bar',
+    data: {
+      labels: [
+        'ElevenLabs Scribe v2',
+        'NVIDIA Canary Qwen 2.5B',
+        'AssemblyAI Slam-1',
+        'Deepgram Nova-3 (median)',
+        'AssemblyAI Universal-3 Pro',
+        'Whisper Large v3',
+        'Deepgram Nova-3 (AA-WER)'
+      ],
+      datasets: [{
+        label: 'WER %',
+        data: [2.3, 3.8, 4.5, 5.3, 6.1, 7.5, 18.0],
+        backgroundColor: ['#1D9E75', '#1D9E75', '#378ADD', '#378ADD', '#378ADD', '#BA7517', '#D4537E'],
+        borderRadius: 3
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => c.parsed.x + '% WER' } }
+      },
+      scales: {
+        x: { ticks: { color: txtCol, callback: v => v + '%' }, grid: { color: gridCol } },
+        y: { ticks: { color: txtCol, font: { size: 11 } }, grid: { display: false } }
+      }
+    }
+  });
+
+  // ============ TTS TTFB chart ============
+  new Chart(document.getElementById('ttsChart'), {
+    type: 'bar',
+    data: {
+      labels: [
+        'ElevenLabs Flash v2.5',
+        'Cartesia Sonic 2',
+        'Cartesia Sonic Turbo',
+        'Kokoro 82M (Apple Silicon)',
+        'Deepgram Aura-2',
+        'ElevenLabs Turbo v2',
+        'OpenAI TTS'
+      ],
+      datasets: [{
+        label: 'TTFB ms',
+        data: [75, 90, 40, 60, 200, 275, 400],
+        backgroundColor: '#D85A30',
+        borderRadius: 3
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => c.parsed.x + ' ms' } }
+      },
+      scales: {
+        x: { ticks: { color: txtCol, callback: v => v + 'ms' }, grid: { color: gridCol } },
+        y: { ticks: { color: txtCol, font: { size: 11 } }, grid: { display: false } }
+      }
+    }
+  });
+
+  // ============ LLM TTFT chart ============
+  new Chart(document.getElementById('llmChart'), {
+    type: 'bar',
+    data: {
+      labels: [
+        'SambaNova Llama 3.3 70B',
+        'Gemini 2.5 Flash-Lite',
+        'Groq Llama 3.3 70B',
+        'Cerebras Llama 3.3 70B',
+        'GPT-4o-mini',
+        'Gemini 2.5 Flash',
+        'GPT-4o',
+        'Claude Haiku 4.5',
+        'Claude Sonnet 4.5'
+      ],
+      datasets: [{
+        label: 'TTFT seconds',
+        data: [0.20, 0.39, 0.40, 0.25, 0.45, 0.50, 0.55, 0.80, 1.20],
+        backgroundColor: '#7F77DD',
+        borderRadius: 3
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: c => c.parsed.x + ' s' } }
+      },
+      scales: {
+        x: { ticks: { color: txtCol, callback: v => v + 's' }, grid: { color: gridCol } },
+        y: { ticks: { color: txtCol, font: { size: 11 } }, grid: { display: false } }
+      }
+    }
+  });
+})();
+</script>
+
+</body>
+</html>
